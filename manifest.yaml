@@ -1,0 +1,310 @@
+apiVersion: v1
+kind: Plugin
+metadata:
+  author: Liujiajiajia01
+  name: waifu_bot
+  repository: 'https://github.com/U90356729/waifuPro'
+  version: 2.1.4
+  description:
+    en_US: A chatbot with real emotions, memory and personality system
+    zh_Hans: 一个拥有真实情感、记忆和人格系统的聊天机器人
+  label:
+    en_US: WaifuBot
+    zh_Hans: Waifu情感机器人
+  icon: assets/icon.svg
+spec:
+  config:
+  - name: llm_model_uuid
+    type: llm-model-selector
+    default: ''
+    label:
+      en_US: Chat Model
+      zh_Hans: 对话模型
+    description:
+      en_US: Pick the model used for replies. Leave empty to fall back to the character
+        card, then to the newest available model
+      zh_Hans: 选择回复使用的模型。留空则用角色卡里配置的模型，都没有时自动选最新的可用模型
+  - name: temperature
+    type: float
+    default: 0.8
+    label:
+      en_US: Temperature
+      zh_Hans: 回复随机性
+    description:
+      en_US: Higher means more random replies. Set 0 to keep the model's own default
+      zh_Hans: 越高回复越随机，建议 0.1-1.5；填 0 表示不干预，用模型自带参数
+  - name: max_tokens
+    type: integer
+    default: 512
+    label:
+      en_US: Max Tokens
+      zh_Hans: 最大回复长度
+    description:
+      en_US: Maximum tokens per reply. Set 0 for no limit
+      zh_Hans: 单次回复的最大 token 数；填 0 表示不限制
+  - name: api_key
+    type: string
+    default: ''
+    label:
+      en_US: API Key (optional)
+      zh_Hans: API密钥
+    description:
+      en_US: Leave empty when using LangBot's own model config. Required only when
+        custom API mode is on
+      zh_Hans: 用 LangBot 里配好的模型时留空；打开下面的「自定义接口」后必须填
+  - name: use_custom_api
+    type: boolean
+    default: false
+    label:
+      en_US: Custom API Mode
+      zh_Hans: 自定义接口模式
+    description:
+      en_US: Let the plugin call the endpoint below directly instead of LangBot's
+        model config
+      zh_Hans: 打开后插件直接请求下面填的地址，不再经过 LangBot 的模型配置
+  - name: custom_api_base
+    type: string
+    default: https://api.openai.com/v1
+    label:
+      en_US: API Base URL
+      zh_Hans: 接口地址
+    description:
+      en_US: OpenAI-compatible base URL, /chat/completions is appended automatically
+      zh_Hans: 仅「自定义接口模式」下使用。OpenAI 兼容地址，末尾的 /chat/completions 会自动补上
+  - name: custom_model_name
+    type: string
+    default: ''
+    label:
+      en_US: Model Name
+      zh_Hans: 模型名称
+    description:
+      en_US: The model parameter sent to the endpoint, e.g. deepseek-chat
+      zh_Hans: 仅「自定义接口模式」下使用。请求里带的模型名，例如 deepseek-chat
+  - name: character
+    type: string
+    default: cute_neko
+    label:
+      en_US: Character Card (Private)
+      zh_Hans: 角色卡（私信）
+    description:
+      en_US: Character card name for private messages, use "default" for default template,
+        "off" to disable preset
+      zh_Hans: 私信使用的角色卡名称，使用"default"时会使用默认模板，"off"时不使用角色预设
+  - name: group_character
+    type: string
+    default: cute_neko
+    label:
+      en_US: Character Card (Group)
+      zh_Hans: 角色卡（群聊）
+    description:
+      en_US: Character card name for group messages, use "default" for default template,
+        "off" to disable preset
+      zh_Hans: 群聊使用的角色卡名称，使用"default"时会使用默认模板，"off"时不使用角色预设
+  - name: user_character_mappings
+    type: object
+    default: {}
+    label:
+      en_US: User Character Mappings
+      zh_Hans: 用户角色映射
+    description:
+      en_US: Map user IDs to specific character cards. Use JSON object format with
+        {}.
+      zh_Hans: 将用户ID映射到特定的角色卡，使用JSON对象格式，注意用大括号{}。
+  - name: ignore_prefix
+    type: array
+    default:
+    - /
+    label:
+      en_US: Ignore Prefix
+      zh_Hans: 忽略前缀
+    description:
+      en_US: List of message prefixes to ignore
+      zh_Hans: 忽略的消息前缀列表
+  - name: analyze_max_conversations
+    type: integer
+    default: 9
+    label:
+      en_US: Max Analysis Conversations
+      zh_Hans: 最大分析对话数
+    description:
+      en_US: Maximum number of conversations used for analysis
+      zh_Hans: 用于生成分析的最大对话数量
+  - name: max_thinking_words
+    type: integer
+    default: 30
+    label:
+      en_US: Max Thinking Words
+      zh_Hans: 最大思考字数
+    description:
+      en_US: Maximum number of words for thinking
+      zh_Hans: 最大思考字数
+  - name: enable_thinking_analysis
+    type: boolean
+    default: false
+    label:
+      en_US: Enable Thinking Analysis
+      zh_Hans: 开启思考分析
+    description:
+      en_US: Analyze the user's intent before replying. Costs one extra LLM call per
+        message
+      zh_Hans: 回复前先分析用户意图，每条消息会多调用一次模型，默认关闭
+  - name: max_prompt_chars
+    type: integer
+    default: 3000
+    label:
+      en_US: Max Prompt Characters
+      zh_Hans: 提示词最大字数
+    description:
+      en_US: Prompt longer than this will be trimmed in the middle
+      zh_Hans: 提示词超过该长度时截断中间部分，保留角色设定和回复要求
+  - name: short_term_memory_size
+    type: integer
+    default: 2000
+    label:
+      en_US: Short-term Memory Size
+      zh_Hans: 短期记忆大小
+    description:
+      en_US: Maximum length of short-term memory (characters)
+      zh_Hans: 短期记忆的最大长度（字）
+  - name: retrieve_top_n
+    type: integer
+    default: 3
+    label:
+      en_US: Retrieve Top N
+      zh_Hans: 检索数量
+    description:
+      en_US: Number of relevant long-term memories to retrieve each time
+      zh_Hans: 每次提取的相关长期记忆数量
+  - name: summary_max_tags
+    type: integer
+    default: 30
+    label:
+      en_US: Max Summary Tags
+      zh_Hans: 最大摘要标签数
+    description:
+      en_US: Maximum number of tags per long-term memory
+      zh_Hans: 每段长期记忆的最大标签数量
+  - name: repeat_trigger
+    type: integer
+    default: 2
+    label:
+      en_US: Repeat Trigger
+      zh_Hans: 复读触发
+    description:
+      en_US: Minimum repeat times to trigger group repeat (0 to disable)
+      zh_Hans: 群聊触发复读的最小重复次数（0为关闭）
+  - name: bracket_rate
+    type: array
+    default:
+    - 0.1
+    - 0.1
+    label:
+      en_US: Bracket Rate
+      zh_Hans: 括号语概率
+    description:
+      en_US: Probability of adding brackets at the end of reply
+      zh_Hans: 回复末尾加括号的机率
+  - name: display_value
+    type: boolean
+    default: false
+    label:
+      en_US: Display Affection Value
+      zh_Hans: 显示好感度
+    description:
+      en_US: Whether to display affection value after each reply
+      zh_Hans: 是否每次回复后显示好感度数值
+  - name: proactive_target_user_id
+    type: string
+    default: 'off'
+    label:
+      en_US: Proactive Target User ID
+      zh_Hans: 主动发言目标用户
+    description:
+      en_US: Target user ID for proactive messages, "off" to disable
+      zh_Hans: 主动发送消息的目标用户ID，"off"为关闭
+  - name: proactive_greeting_enabled
+    type: boolean
+    default: false
+    label:
+      en_US: Proactive Greeting
+      zh_Hans: 主动发言
+    description:
+      en_US: Whether to enable proactive greeting mode
+      zh_Hans: 是否开启主动发言模式
+  - name: proactive_greeting_probability
+    type: integer
+    default: 50
+    label:
+      en_US: Proactive Probability
+      zh_Hans: 主动发言概率
+    description:
+      en_US: Probability of triggering proactive greeting (0-100)
+      zh_Hans: 触发主动发言的几率（0-100）
+  - name: proactive_min_inactive_minutes
+    type: integer
+    default: 180
+    label:
+      en_US: Inactive Minutes
+      zh_Hans: 不活跃分钟数
+    description:
+      en_US: Minimum minutes of user inactivity before sending proactive message
+      zh_Hans: 用户不活跃达到此时间后发送主动消息
+  - name: proactive_min_gap_minutes
+    type: integer
+    default: 120
+    label:
+      en_US: Min Gap Between Proactive Messages
+      zh_Hans: 主动消息最小间隔（分钟）
+    description:
+      en_US: Hard minimum minutes between two proactive messages, to avoid spamming
+      zh_Hans: 两条主动消息之间的最小间隔（分钟），防止连续刷屏
+  - name: proactive_do_not_disturb_start
+    type: string
+    default: '23:00'
+    label:
+      en_US: Do Not Disturb Start
+      zh_Hans: 勿扰开始时间
+    description:
+      en_US: 'Do not disturb start time (format: ''xx:xx'')'
+      zh_Hans: 勿扰时间开始（格式：'xx:xx'）
+  - name: proactive_do_not_disturb_end
+    type: string
+    default: 08:00
+    label:
+      en_US: Do Not Disturb End
+      zh_Hans: 勿扰结束时间
+    description:
+      en_US: 'Do not disturb end time (format: ''xx:xx'')'
+      zh_Hans: 勿扰时间结束（格式：'xx:xx'）
+  - name: loop_time
+    type: integer
+    default: 60
+    label:
+      en_US: Loop Time
+      zh_Hans: 循环检查时间
+    description:
+      en_US: Proactive greeting loop check time (seconds)
+      zh_Hans: 主动发言循环检查时间（秒）
+  - name: admin_ids
+    type: array
+    default: []
+    label:
+      en_US: Admin IDs
+      zh_Hans: 管理员ID
+    description:
+      en_US: List of admin user IDs
+      zh_Hans: 管理员用户ID列表
+  components:
+    EventListener:
+      fromDirs:
+      - path: components/event_listener/
+    Command:
+      fromDirs:
+      - path: components/commands/
+  resources:
+  - path: config/
+  pages: []
+execution:
+  python:
+    path: main.py
+    attr: WaifuBotPlugin

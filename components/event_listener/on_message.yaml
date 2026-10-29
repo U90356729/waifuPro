@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: EventListener
+metadata:
+  name: on_message
+  label:
+    en_US: On Message Event Listener
+    zh_Hans: 消息事件监听器
+spec:
+  events:
+    - type: PersonNormalMessageReceived
+      handler: on_person_message_received
+    - type: GroupNormalMessageReceived
+      handler: on_group_message_received
+execution:
+  python:
+    path: on_message.py
+    attr: OnMessageEventListener

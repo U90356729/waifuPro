@@ -1,0 +1,42 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.tar.gz
+*.tgz
+
+# 私人角色卡：不放仓库，自行放到 config/cards/ 下
+config/cards/*.private.yaml
+config/cards/大肥鱼.yaml
+
+# 备份文件
+*.bak
+*.bak.*
+*.orig
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp

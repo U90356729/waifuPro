@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Command
+metadata:
+  name: affection
+  label:
+    en_US: Affection Command
+    zh_Hans: 好感度命令
+spec:
+  description:
+    en_US: Affection management command
+    zh_Hans: 好感度管理命令
+  subcommands:
+    - name: check
+      description:
+        en_US: Check current user affection
+        zh_Hans: 查看当前用户好感度
+      handler: check_affection
+    - name: set
+      description:
+        en_US: Set user affection (admin)
+        zh_Hans: 设置用户好感度（管理员）
+      handler: set_affection
+      args:
+        - name: user_id
+          type: string
+          description:
+            en_US: Target user ID
+            zh_Hans: 目标用户ID
+        - name: value
+          type: integer
+          description:
+            en_US: Affection value (0-100)
+            zh_Hans: 好感度值（0-100）
+    - name: list
+      description:
+        en_US: List all user affections (admin)
+        zh_Hans: 列出所有用户好感度（管理员）
+      handler: list_affection
+execution:
+  python:
+    path: affection.py
+    attr: AffectionCommand

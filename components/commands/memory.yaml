@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Command
+metadata:
+  name: memory
+  label:
+    en_US: Memory Command
+    zh_Hans: 记忆命令
+spec:
+  description:
+    en_US: Memory management command
+    zh_Hans: 记忆管理命令
+  subcommands:
+    - name: view
+      description:
+        en_US: View user memory
+        zh_Hans: 查看用户记忆
+      handler: view_memory
+    - name: clear
+      description:
+        en_US: Clear user memory
+        zh_Hans: 清除用户记忆
+      handler: clear_memory
+    - name: edit
+      description:
+        en_US: Edit memory content (admin)
+        zh_Hans: 编辑记忆内容（管理员）
+      handler: edit_memory
+      args:
+        - name: user_id
+          type: string
+          description:
+            en_US: Target user ID
+            zh_Hans: 目标用户ID
+        - name: memory_id
+          type: string
+          description:
+            en_US: Memory ID
+            zh_Hans: 记忆ID
+        - name: content
+          type: string
+          description:
+            en_US: New memory content
+            zh_Hans: 新的记忆内容
+execution:
+  python:
+    path: memory.py
+    attr: MemoryCommand

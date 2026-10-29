@@ -1,0 +1,10 @@
+# 统一换行符为 LF，避免在 Windows 上提交后部署到 Linux 出现问题
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.tar.gz binary

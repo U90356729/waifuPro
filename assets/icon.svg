@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- 背景圆形 -->
+  <circle cx="32" cy="32" r="30" fill="#FFB6C1"/>
+  <!-- 眼睛 -->
+  <circle cx="22" cy="28" r="4" fill="#333"/>
+  <circle cx="42" cy="28" r="4" fill="#333"/>
+  <!-- 高光 -->
+  <circle cx="20" cy="26" r="1.5" fill="white"/>
+  <circle cx="40" cy="26" r="1.5" fill="white"/>
+  <!-- 嘴巴 -->
+  <path d="M25,40 Q32,45 39,40" stroke="#333" stroke-width="2" fill="none"/>
+  <!-- 腮红 -->
+  <circle cx="18" cy="36" r="3" fill="#FF69B4" opacity="0.5"/>
+  <circle cx="46" cy="36" r="3" fill="#FF69B4" opacity="0.5"/>
+  <!-- 装饰蝴蝶结 -->
+  <path d="M15,20 Q32,10 49,20" stroke="#FF69B4" stroke-width="3" fill="none"/>
+  <circle cx="32" cy="18" r="3" fill="#FF69B4"/>
+</svg>
