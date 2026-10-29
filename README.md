@@ -227,17 +227,56 @@ assets/icon.svg             插件图标
 
 ## 开发
 
-打包：
+### 安装插件 CLI
 
 ```bash
-python -m langbot_plugin.cli build
+pip install langbot-plugin          # 或 uv tool install langbot-plugin
+lbp --help
 ```
 
-本地校验（无需启动 LangBot）：
+### 打包成安装包
+
+在插件根目录（有 `manifest.yaml` 的那一层）执行：
+
+```bash
+lbp build -o dist
+# 等价写法
+python -m langbot_plugin.cli build -o dist
+```
+
+产物是 `dist/<作者>-<插件名>-<版本>.lbpkg`，本质是一个 zip，可以直接在 LangBot 网页端「插件 → 安装插件 → 上传文件」里安装。
+
+版本号取自 `manifest.yaml` 的 `metadata.version`，发布新版本时记得先改它。
+
+### 本地语法校验
 
 ```bash
 python -m compileall .
 ```
+
+### 发布到插件市场
+
+需要先有 [LangBot Space](https://space.langbot.app) 账号（用 GitHub 授权登录）。
+
+登录 CLI，两种方式任选：
+
+```bash
+# 方式一：个人访问令牌（推荐）
+# 在 Space 头像 → Account Settings → Personal Access Tokens 生成
+lbp login --token lbpat_xxxxxxxx
+
+# 方式二：设备码
+lbp login
+# 按提示打开 https://space.langbot.app/auth/device 输入验证码
+```
+
+然后在插件根目录发布：
+
+```bash
+lbp publish
+```
+
+`publish` 会自动打包并上传，成功后到 [space.langbot.app/market](https://space.langbot.app/market) 补充截图与介绍，提交审核。审核通过后才会出现在市场里。
 
 ---
 
