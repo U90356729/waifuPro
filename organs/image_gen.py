@@ -194,7 +194,12 @@ class ImageGenerator:
     # ------------------------------------------------------------------ 生成
 
     async def generate(self, user_text):
-        """返回 data URI；失败返回空串。"""
+        """返回 data URI；失败返回空串。
+
+        只走带参考图的路线。纯文生图（/images/generations）和不带图的对话请求
+        都会画出一个长相完全不同的人，比不出图更糟，因此不再自动降级。
+        真想要那种效果就手动把 provider 改成 pollinations。
+        """
         conf = self._conf()
         provider = str(conf.get("image_gen_provider") or "auto").strip().lower()
         base = str(conf.get("image_gen_base_url") or "").strip().rstrip("/")
@@ -202,19 +207,23 @@ class ImageGenerator:
         model = str(conf.get("image_gen_model") or "").strip()
         timeout = int(conf.get("image_gen_timeout_seconds", DEFAULT_TIMEOUT) or DEFAULT_TIMEOUT)
 
-        if provider in ("auto", "openai"):
-            if base and key and model:
-                uri = await self._openai_chain(base, key, model, user_text, timeout)
-                if uri:
-                    return uri
-                logger.info("[生图] 付费接口没出图，准备走免费兜底")
-            elif provider == "openai":
-                logger.warning("[生图] 接口配置不全：需要地址、密钥、模型名")
-                return ""
-
-        if provider in ("auto", "pollinations"):
+        if provider == "pollinations":
             return await self._pollinations(user_text, timeout)
 
+        if not (base and key and model):
+            logger.warning("[生图] 接口配置不全：需要地址、密钥、模型名")
+            return ""
+
+        ref = self._reference_uri()
+        if not ref:
+            logger.warning("[生图] 参考图不可用，按设置不生成（免得画出另一个人）")
+            return ""
+
+        uri = await self._openai_chain(base, key, model, user_text, timeout, ref)
+        if uri:
+            return uri
+
+        logger.warning("[生图] 带参考图的接口都没出图，放弃这一张")
         return ""
 
     # ------------------------------------------------ openai 兼容（可带参考图）
@@ -224,35 +233,31 @@ class ImageGenerator:
         mode = str(self._conf().get("image_gen_api_mode") or "auto").strip().lower()
         return mode if mode in ("auto", "chat", "edits", "images") else "auto"
 
-    async def _openai_chain(self, base, key, model, user_text, timeout):
-        ref = self._reference_uri()
-        prompt = self.build_prompt(user_text, keep_reference=bool(ref))
+    async def _openai_chain(self, base, key, model, user_text, timeout, ref):
         mode = self._api_mode()
+        prompt = self.build_prompt(user_text, keep_reference=True)
 
         if mode == "chat":
             return await self._chat_with_image(base, key, model, prompt, ref, timeout)
         if mode == "images":
-            return await self._images_api(base, key, model, prompt, timeout)
+            # /images/generations 只吃文字、无法带参考图，画出来不是同一个人，直接不干
+            logger.warning("[生图] 纯文生图带不了参考图，已跳过。请把请求方式改成 auto 或 chat")
+            return ""
         if mode == "edits":
-            if not ref:
-                logger.warning("[生图] 选了图像编辑方式但没拿到参考图，改走普通生成")
-                return await self._images_api(base, key, model, prompt, timeout)
             return await self._edits_api(base, key, model, prompt, ref, timeout)
 
-        # auto：对话式生图 → 图像编辑 → 文生图，挨个试，哪个出图用哪个
-        if ref:
-            uri = await self._chat_with_image(base, key, model, prompt, ref, timeout)
-            if uri:
-                return uri
-            uri = await self._edits_api(base, key, model, prompt, ref, timeout)
-            if uri:
-                return uri
-
-        uri = await self._images_api(base, key, model, prompt, timeout)
+        # auto：对话式（Gemini 这类）→ 图像编辑（Grok 这类），两条都带参考图
+        uri = await self._chat_with_image(base, key, model, prompt, ref, timeout)
         if uri:
+            logger.info("[生图] 出图路径：对话接口 + 参考图")
             return uri
 
-        return await self._chat_with_image(base, key, model, prompt, "", timeout)
+        uri = await self._edits_api(base, key, model, prompt, ref, timeout)
+        if uri:
+            logger.info("[生图] 出图路径：图像编辑 + 参考图")
+            return uri
+
+        return ""
 
     async def _post_json(self, url, payload, key, timeout):
         try:
@@ -389,6 +394,13 @@ class ImageGenerator:
                 return wrapped
 
         logger.warning("[生图] 返回里没找到可用图片")
+        # 接口通了却不给图，多半是内容被审核挡了：模型只回一段文字。
+        # 把这句摘出来，日志里一眼能看出是被拒还是格式没解析对。
+        for choice in data.get("choices") or []:
+            text = ((choice or {}).get("message") or {}).get("content")
+            if isinstance(text, str) and text.strip():
+                logger.warning(f"[生图] 接口返回的文字：{text.strip()[:120]}")
+                break
         return ""
 
     def _wrap(self, raw):

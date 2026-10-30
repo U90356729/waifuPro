@@ -230,9 +230,10 @@ spec:
       en_US: Image Backend
       zh_Hans: 生图后端
     description:
-      en_US: 'auto: try the paid endpoint first, fall back to the free one; openai:
-        paid only; pollinations: free only'
-      zh_Hans: auto＝先走付费接口，失败再用免费接口；openai＝只用付费接口；pollinations＝只用免费接口
+      en_US: 'auto/openai: reference-image endpoints only, no fallback to text-only
+        generation; pollinations: free text-to-image only, the result will not look
+        like the reference'
+      zh_Hans: auto 或 openai＝只用带参考图的接口，画不出来就不发（不会退成纯文字生成）；pollinations＝免费纯文生图，画出来不是参考图里的人
   - name: image_gen_use_reference
     type: boolean
     default: true
