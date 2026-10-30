@@ -4,7 +4,7 @@ metadata:
   author: Liujiajiajia01
   name: waifu_bot
   repository: 'https://github.com/U90356729/waifuPro'
-  version: 2.1.4
+  version: 2.2.0
   description:
     en_US: A chatbot with real emotions, memory and personality system
     zh_Hans: 一个拥有真实情感、记忆和人格系统的聊天机器人
@@ -213,6 +213,138 @@ spec:
     description:
       en_US: Whether to display affection value after each reply
       zh_Hans: 是否每次回复后显示好感度数值
+  - name: image_gen_enabled
+    type: boolean
+    default: false
+    label:
+      en_US: AI Image Generation
+      zh_Hans: AI 生图
+    description:
+      en_US: When on, the bot draws a picture on the spot after the user asks for a
+        photo
+      zh_Hans: 打开后，用户说"看看照片""发张图"这类话时，现场用 AI 画一张发过去；关掉则完全不走生图
+  - name: image_gen_provider
+    type: string
+    default: auto
+    label:
+      en_US: Image Backend
+      zh_Hans: 生图后端
+    description:
+      en_US: 'auto: try the paid endpoint first, fall back to the free one; openai:
+        paid only; pollinations: free only'
+      zh_Hans: auto＝先走付费接口，失败再用免费接口；openai＝只用付费接口；pollinations＝只用免费接口
+  - name: image_gen_use_reference
+    type: boolean
+    default: true
+    label:
+      en_US: Use Reference Image
+      zh_Hans: 使用参考图
+    description:
+      en_US: Send the reference portrait along with the prompt so the character keeps
+        the same face
+      zh_Hans: 把角色参考图一起发给生图接口，人物长相才稳定；免费接口不支持参考图
+  - name: image_gen_reference_image
+    type: string
+    default: config/reference/character.jpg
+    label:
+      en_US: Reference Image Path
+      zh_Hans: 参考图路径
+    description:
+      en_US: Path relative to the plugin root
+      zh_Hans: 相对插件根目录的路径，换角色时替换这张图即可
+  - name: image_gen_base_url
+    type: string
+    default: https://api.ikuncode.ai/v1
+    label:
+      en_US: Image API Base URL
+      zh_Hans: 生图接口地址
+    description:
+      en_US: OpenAI-compatible base URL of the image service, /images/generations is
+        appended automatically
+      zh_Hans: OpenAI 兼容的生图服务地址，末尾的 /images/generations 会自动补上
+  - name: image_gen_api_key
+    type: string
+    default: ''
+    label:
+      en_US: Image API Key
+      zh_Hans: 生图密钥
+    description:
+      en_US: Leave empty to reuse the API key above
+      zh_Hans: 留空则复用上面的「API密钥」
+  - name: image_gen_model
+    type: string
+    default: gemini-3.1-flash-image-preview
+    label:
+      en_US: Image Model
+      zh_Hans: 生图模型
+    description:
+      en_US: Model name sent to the image endpoint
+      zh_Hans: 请求里带的模型名，需要你的接口真的支持
+  - name: image_gen_api_mode
+    type: string
+    default: auto
+    label:
+      en_US: Request Mode
+      zh_Hans: 请求方式
+    description:
+      en_US: 'auto: try chat, then /images/edits, then /images/generations; chat: chat
+        completions carrying the reference image; edits: /images/edits carrying the
+        reference image; images: text to image only'
+      zh_Hans: 自动依次试对话式生图、图像编辑、文生图。换模型出不来图时再手动指定：chat=对话式生图（Gemini 这类），edits=图像编辑（Grok 这类），images=纯文生图
+  - name: image_gen_size
+    type: string
+    default: 1024x1024
+    label:
+      en_US: Image Size
+      zh_Hans: 图片尺寸
+    description:
+      en_US: Size parameter, e.g. 1024x1024
+      zh_Hans: 尺寸参数，例如 1024x1024
+  - name: image_gen_trigger_words
+    type: array
+    default:
+    - 看看照片
+    - 看看相片
+    - 发张照片
+    - 发张图
+    - 来张照片
+    - 看看你
+    - 给我看看
+    - 长什么样
+    - 自拍
+    label:
+      en_US: Trigger Words
+      zh_Hans: 触发词
+    description:
+      en_US: The bot draws a picture when the message contains any of these words
+      zh_Hans: 消息里出现任意一个词就触发生图，可自行增删
+  - name: image_gen_cooldown_minutes
+    type: integer
+    default: 5
+    label:
+      en_US: Image Cooldown (minutes)
+      zh_Hans: 生图冷却（分钟）
+    description:
+      en_US: Minimum minutes between two generated images
+      zh_Hans: 两张生成图之间的最小间隔，防止刷图烧额度
+  - name: image_gen_timeout_seconds
+    type: integer
+    default: 120
+    label:
+      en_US: Image Timeout (seconds)
+      zh_Hans: 生图超时（秒）
+    description:
+      en_US: Give up and fall back to the local gallery after this many seconds
+      zh_Hans: 超过这个时间还没出图就放弃，改用本地图库
+  - name: image_gen_style
+    type: string
+    default: ''
+    label:
+      en_US: Character Style Prompt
+      zh_Hans: 人物形象描述
+    description:
+      en_US: Leave empty to use the built-in description of the character
+      zh_Hans: 画图时固定使用的人物外形描述，留空则用内置的大肥鱼外形
   - name: proactive_target_user_id
     type: string
     default: 'off'
