@@ -1,8 +1,9 @@
-"""AI 生图：按角色参考图生成图片，返回 data URI。
+"""AI 生图：拿角色参考图当基准画图，返回 data URI。
 
-两条后端：
-1. openai 兼容接口（gemini 图像模型 / gpt-image-1）：能带参考图，人物一致性最好；
-2. pollinations 免费接口：不需要 key，只能文生图，作兜底。
+只有一条路：必须带参考图。参考图读不到、接口画不出来，就这一轮不出图，
+绝不退化成纯文字生图——那样画出来的是另一个人，发出去比不发更糟。
+
+接口按 openai 兼容格式调：先试对话式（Gemini 这类），再试 /images/edits（Grok 这类）。
 
 只依赖标准库，网络请求放到线程里跑，不阻塞事件循环。
 """
@@ -17,7 +18,6 @@ import random
 import re
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 
 logger = logging.getLogger(__name__)
@@ -25,36 +25,18 @@ logger = logging.getLogger(__name__)
 # 单张图大小上限，QQ 通道发太大的图会被吞
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
 DEFAULT_TIMEOUT = 120
-POLLINATIONS_BASE = "https://image.pollinations.ai/prompt/"
 
 # 参考图的默认位置（相对插件根目录）
 DEFAULT_REFERENCE = os.path.join("config", "reference", "character.jpg")
 
 # 没有指定场景时随机挑一个日常画面，避免每次都是同一张
 SCENES = [
-    ("在房间里趴在桌上，抬眼看镜头，表情有点懒",
-     "lying on a desk in her room, looking up at the camera, lazy expression"),
-    ("抱着一条小鱼干坐在窗边吃，嘴角有碎屑",
-     "sitting by the window eating a small dried fish, crumbs at the corner of her mouth"),
-    ("站在阳台吹风，头发被风吹起，回头看镜头",
-     "standing on a balcony, hair blown by the wind, looking back at the camera"),
-    ("窝在沙发里抱着抱枕，眼睛半睁，像刚睡醒",
-     "curled up on a sofa hugging a cushion, half-closed eyes, just woke up"),
+    "在房间里趴在桌上，抬眼看镜头，表情有点懒",
+    "抱着一条小鱼干坐在窗边吃，嘴角有碎屑",
+    "站在阳台吹风，头发被风吹起，回头看镜头",
+    "窝在沙发里抱着抱枕，眼睛半睁，像刚睡醒",
 ]
 
-# 角色外形，中文版给视觉模型，英文版给免费文生图
-STYLE_ZH = (
-    "动漫插画风格，画面里只有一位少女：蓝紫渐变的长卷发、发尾泛亮蓝，"
-    "白色蕾丝荷叶边的女仆头饰，深蓝色鲸鱼鳍状耳饰，深藏青女仆装配白色蕾丝围裙，"
-    "身后一条鲸鱼尾巴，身材纤细，巴掌大的小鹅蛋脸，浅灰褐色的大眼睛、眼尾微垂，"
-    "下睫毛明显，唇色偏红。"
-)
-STYLE_EN = (
-    "2d anime illustration, cel shading, one girl only: long blue-to-purple gradient wavy hair, "
-    "white lace frilled maid headdress, dark navy whale-fin shaped earrings, dark navy maid dress "
-    "with white lace apron, a whale tail behind her, slim figure, small oval face, big light "
-    "greyish-brown eyes with slightly drooping outer corners, long lower lashes, reddish lips."
-)
 # 带参考图时用这段：以参照图为准，不硬套画风，免得把半写实照片画成二次元
 STYLE_REF = (
     "以参考图里的少女为唯一主角：脸型、五官比例、眼睛形状与颜色、唇形、妆容、肤色、"
@@ -156,8 +138,6 @@ class ImageGenerator:
         return re.sub(r"[，。！？、,.!?~～\s]+", " ", out).strip()
 
     def _reference_uri(self):
-        if not self._conf().get("image_gen_use_reference", True):
-            return ""
         rel = str(self._conf().get("image_gen_reference_image") or "").strip() or DEFAULT_REFERENCE
         path = rel if os.path.isabs(rel) else os.path.join(self._base_dir, rel)
         uri = _file_to_data_uri(path)
@@ -165,50 +145,28 @@ class ImageGenerator:
             logger.warning(f"[生图] 参考图缺失或不可用：{path}")
         return uri
 
-    def build_prompt(self, user_text, keep_reference=False):
-        custom = str(self._conf().get("image_gen_style") or "").strip()
-        if custom:
-            style = custom
-        elif keep_reference:
-            style = STYLE_REF
-        else:
-            style = STYLE_ZH
+    def build_prompt(self, user_text):
+        style = str(self._conf().get("image_gen_style") or "").strip() or STYLE_REF
         scene = self._strip_triggers(user_text)
         if len(scene) < 2:
-            scene = random.choice(SCENES)[0]
+            scene = random.choice(SCENES)
         else:
             scene = scene[:120]
-        if keep_reference:
-            return f"{style}现在的动作和场景：{scene}。"
-        return f"{style}画面内容：{scene}。"
-
-    def build_prompt_en(self, user_text):
-        style = STYLE_EN
-        scene = self._strip_triggers(user_text)
-        if len(scene) < 2:
-            scene = random.choice(SCENES)[1]
-        else:
-            scene = "doing what the user asked: " + scene[:100]
-        return f"{style} Scene: {scene}."
+        return f"{style}现在的动作和场景：{scene}。"
 
     # ------------------------------------------------------------------ 生成
 
     async def generate(self, user_text):
-        """返回 data URI；失败返回空串。
+        """返回 data URI；没画出来返回空串。
 
-        只走带参考图的路线。纯文生图（/images/generations）和不带图的对话请求
-        都会画出一个长相完全不同的人，比不出图更糟，因此不再自动降级。
-        真想要那种效果就手动把 provider 改成 pollinations。
+        只有带参考图这一条路：参考图拿不到、接口没给图，都直接放弃这一张，
+        不退成纯文字生图（画出来的人完全不像，用户明确不要这种图）。
         """
         conf = self._conf()
-        provider = str(conf.get("image_gen_provider") or "auto").strip().lower()
         base = str(conf.get("image_gen_base_url") or "").strip().rstrip("/")
         key = str(conf.get("image_gen_api_key") or "").strip() or str(conf.get("api_key") or "").strip()
         model = str(conf.get("image_gen_model") or "").strip()
         timeout = int(conf.get("image_gen_timeout_seconds", DEFAULT_TIMEOUT) or DEFAULT_TIMEOUT)
-
-        if provider == "pollinations":
-            return await self._pollinations(user_text, timeout)
 
         if not (base and key and model):
             logger.warning("[生图] 接口配置不全：需要地址、密钥、模型名")
@@ -216,7 +174,7 @@ class ImageGenerator:
 
         ref = self._reference_uri()
         if not ref:
-            logger.warning("[生图] 参考图不可用，按设置不生成（免得画出另一个人）")
+            logger.warning("[生图] 参考图不可用，这一张不生成（免得画出另一个人）")
             return ""
 
         uri = await self._openai_chain(base, key, model, user_text, timeout, ref)
@@ -226,23 +184,19 @@ class ImageGenerator:
         logger.warning("[生图] 带参考图的接口都没出图，放弃这一张")
         return ""
 
-    # ------------------------------------------------ openai 兼容（可带参考图）
+    # ------------------------------------------------ openai 兼容（必须带参考图）
 
     def _api_mode(self):
-        """请求方式：auto / chat / edits / images。换模型时这里可能要跟着改。"""
+        """请求方式：auto / chat / edits。换模型时这里可能要跟着改。"""
         mode = str(self._conf().get("image_gen_api_mode") or "auto").strip().lower()
-        return mode if mode in ("auto", "chat", "edits", "images") else "auto"
+        return mode if mode in ("auto", "chat", "edits") else "auto"
 
     async def _openai_chain(self, base, key, model, user_text, timeout, ref):
         mode = self._api_mode()
-        prompt = self.build_prompt(user_text, keep_reference=True)
+        prompt = self.build_prompt(user_text)
 
         if mode == "chat":
             return await self._chat_with_image(base, key, model, prompt, ref, timeout)
-        if mode == "images":
-            # /images/generations 只吃文字、无法带参考图，画出来不是同一个人，直接不干
-            logger.warning("[生图] 纯文生图带不了参考图，已跳过。请把请求方式改成 auto 或 chat")
-            return ""
         if mode == "edits":
             return await self._edits_api(base, key, model, prompt, ref, timeout)
 
@@ -274,19 +228,6 @@ class ImageGenerator:
             logger.warning(f"[生图] {url} 调用失败：{type(e).__name__}: {e}")
         return {}
 
-    async def _images_api(self, base, key, model, prompt, timeout):
-        """文生图。size 不是所有厂商都认，被拒就去掉再试一次。"""
-        conf = self._conf()
-        size = str(conf.get("image_gen_size") or "").strip()
-        payload = {"model": model, "prompt": prompt, "n": 1}
-        if size:
-            payload["size"] = size
-        data = await self._post_json(base + "/images/generations", payload, key, timeout)
-        if not data and size:
-            payload.pop("size", None)
-            data = await self._post_json(base + "/images/generations", payload, key, timeout)
-        return await self._extract(data, timeout) if data else ""
-
     async def _edits_api(self, base, key, model, prompt, ref, timeout):
         """图像编辑，把参考图一起送进去，人物才长得像。走 /images/edits。"""
         data = await self._post_json(
@@ -313,34 +254,6 @@ class ImageGenerator:
             payload["modalities"] = ["image", "text"]
         data = await self._post_json(base + "/chat/completions", payload, key, timeout)
         return await self._extract(data, timeout) if data else ""
-
-    # ---------------------------------------------------------------- 免费兜底
-
-    async def _pollinations(self, user_text, timeout):
-        prompt = self.build_prompt_en(user_text)
-        conf = self._conf()
-        width, _, height = str(conf.get("image_gen_size") or "1024x1024").partition("x")
-        params = {
-            "width": (width or "1024").strip(),
-            "height": (height or "1024").strip(),
-            "nologo": "true",
-            "model": "flux",
-        }
-        url = POLLINATIONS_BASE + urllib.parse.quote(prompt[:600]) + "?" + urllib.parse.urlencode(params)
-        try:
-            raw = await asyncio.to_thread(_http_get_bytes, url, timeout)
-        except urllib.error.HTTPError as e:
-            hint = ""
-            try:
-                hint = e.read().decode("utf-8", "replace")[:120]
-            except Exception:
-                pass
-            logger.warning(f"[生图] 免费接口 HTTP {e.code}：{hint}")
-            return ""
-        except Exception as e:
-            logger.warning(f"[生图] 免费接口失败：{type(e).__name__}: {e}")
-            return ""
-        return self._wrap(raw)
 
     # ------------------------------------------------------------------ 解析
 

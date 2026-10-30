@@ -499,11 +499,15 @@ class OnMessageEventListener(EventListener):
                 logger.error(f"[生图] 失败：{type(e).__name__}: {e}", exc_info=True)
 
             if not data_uri:
-                # 画不出来就退回家里的图库，别把话掉在地上
+                # 画不出来就明说这一张没拍成。绝不拿图库里不相干的照片顶上，
+                # 那和"她本人"对不上，比不发更糟。
                 logger.warning(
-                    f"[生图] 没有拿到图片，用时 {time.time() - started:.1f}s，改发本地图库"
+                    f"[生图] 没有拿到图片，用时 {time.time() - started:.1f}s，这一张不发"
                 )
-                await self._maybe_send_image(ctx, "")
+                try:
+                    await ctx.reply(MessageChain([Plain(text="（唔……没拍成，等会儿再给你看）")]))
+                except Exception as e:
+                    logger.warning(f"[生图] 兜底文字发送失败：{e}")
                 return
 
             tmp_path = ""
