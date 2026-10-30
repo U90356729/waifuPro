@@ -5,7 +5,7 @@
 支持私聊与群聊，角色人格由 YAML 角色卡定义，不写代码也能换人设。
 
 - 插件标识：`waifu_bot`
-- 当前版本：`2.2.0`
+- 当前版本：`2.2.1`
 - 依赖：`pyyaml`（见 `requirements.txt`）
 
 ---
@@ -105,17 +105,14 @@
 ### AI 生图
 
 - `image_gen_enabled` —— 总开关，默认关闭。
-- `image_gen_provider` —— `auto` 先走付费接口、失败再走免费接口；`openai` 只走付费；`pollinations` 只走免费。
-- `image_gen_use_reference` —— 是否把角色参考图一起发给接口，关掉后每次生成的脸会变。
-- `image_gen_reference_image` —— 参考图路径，相对插件根目录，默认 `config/reference/character.jpg`。
-- `image_gen_base_url` —— OpenAI 兼容的图像接口地址。
+- `image_gen_reference_image` —— 参考图路径，相对插件根目录，默认 `config/reference/character.jpg`。这是硬性要求：读不到就不出图。
+- `image_gen_base_url` —— OpenAI 兼容的图像接口地址，填到 `/v1` 为止。
 - `image_gen_api_key` —— 生图专用密钥，留空则复用对话的 `api_key`。
 - `image_gen_model` —— 图像模型名，必须填接口真正支持的模型。
-- `image_gen_api_mode` —— `auto` 先试对话接口再试图像接口；`chat` / `images` 强制走其中一种。
-- `image_gen_size` —— 图像接口的尺寸参数，仅 `images` 模式使用。
+- `image_gen_api_mode` —— `auto` 先试对话接口再试 `/images/edits`，两条都带参考图；`chat` / `edits` 强制走其中一种。
 - `image_gen_cooldown_minutes` —— 两次生成之间的最小间隔，防止连续刷图烧额度。
-- `image_gen_timeout_seconds` —— 超时放弃并回退到本地图库。
-- `image_gen_style` —— 固定的人物外形描述，留空则用内置默认描述。
+- `image_gen_timeout_seconds` —— 单张图的等待上限，超时就这一轮不发。
+- `image_gen_style` —— 固定的人物外形描述，留空则用内置的「以参考图为准」那段。
 - `image_gen_trigger_words` —— 兜底触发词，模型没领会意图时按这些词判断。
 
 ### 权限
@@ -211,9 +208,9 @@ Rules:
 
 **接口要求**
 
-需要 OpenAI 兼容的图像接口，且模型支持图像编辑（带参考图）。实测可用的是 `gemini-3.1-flash-image-preview`，单张十几到二十秒。`image_gen_api_mode` 保持 `auto` 即可，插件会先试对话接口（多数图像模型走这条），失败再试 `/images/generations`。
+需要 OpenAI 兼容的图像接口，且模型支持带参考图出图。实测可用的是 `gemini-3.1-flash-image-preview`，单张十几到二十秒。`image_gen_api_mode` 保持 `auto` 即可，插件会先试对话接口（多数图像模型走这条），失败再试 `/images/edits`，两条都画不出来就这一轮不发。
 
-免费兜底渠道 `pollinations` 不需要密钥，但不支持参考图、带水印、画风偏写实，同一 IP 还有每分钟一张的限制，只适合试水。
+生图不接受不带参考图的降级：纯文字生图画出的人跟角色对不上，比不发更糟。同理，生成失败时也不会拿本地图库的存货顶上——图库只在模型主动写 `[IMAGE:类别]` 时才用。
 
 **注意**
 
@@ -264,7 +261,7 @@ assets/icon.svg             插件图标
 - **目标用户通道匹配** —— 按目标用户实际所在的机器人/适配器选择发送通道，避免用错账号。
 - **模型名兼容** —— 修正 OpenAI 兼容接口下模型名缺少 `openai/` 前缀导致调用失败的问题。
 - **图片理解** —— 新增多模态支持，消息中的图片随提示词一起提交给模型。
-- **AI 生图** —— 新增 `organs/image_gen.py`，支持带角色参考图的图像生成；模型自己写画面描述，可换动作、衣服、场景。附本地图库 `organs/images.py`，生图失败或关闭时发存货。
+- **AI 生图** —— 新增 `organs/image_gen.py`，支持带角色参考图的图像生成；模型自己写画面描述，可换动作、衣服、场景。附本地图库 `organs/images.py`，模型写 `[IMAGE:类别]` 时发存货。
 
 ---
 
