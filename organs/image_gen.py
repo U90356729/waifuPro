@@ -162,7 +162,7 @@ class ImageGenerator:
         path = rel if os.path.isabs(rel) else os.path.join(self._base_dir, rel)
         uri = _file_to_data_uri(path)
         if not uri:
-            logger.info(f"参考图缺失或不可用：{path}")
+            logger.warning(f"[生图] 参考图缺失或不可用：{path}")
         return uri
 
     def build_prompt(self, user_text, keep_reference=False):
@@ -207,9 +207,9 @@ class ImageGenerator:
                 uri = await self._openai_chain(base, key, model, user_text, timeout)
                 if uri:
                     return uri
-                logger.info("付费生图接口没出图，准备走免费兜底")
+                logger.info("[生图] 付费接口没出图，准备走免费兜底")
             elif provider == "openai":
-                logger.warning("生图接口配置不全：需要地址、密钥、模型名")
+                logger.warning("[生图] 接口配置不全：需要地址、密钥、模型名")
                 return ""
 
         if provider in ("auto", "pollinations"):
@@ -235,7 +235,7 @@ class ImageGenerator:
             return await self._images_api(base, key, model, prompt, timeout)
         if mode == "edits":
             if not ref:
-                logger.warning("选了图像编辑方式但没拿到参考图，改走普通生成")
+                logger.warning("[生图] 选了图像编辑方式但没拿到参考图，改走普通生成")
                 return await self._images_api(base, key, model, prompt, timeout)
             return await self._edits_api(base, key, model, prompt, ref, timeout)
 
@@ -264,9 +264,9 @@ class ImageGenerator:
                 detail = e.read().decode("utf-8", "replace")[:160]
             except Exception:
                 pass
-            logger.info(f"{url.rsplit('/', 1)[-1]} 返回 HTTP {e.code}：{detail}")
+            logger.warning(f"[生图] {url} 返回 HTTP {e.code}：{detail}")
         except Exception as e:
-            logger.info(f"{url.rsplit('/', 1)[-1]} 调用失败：{type(e).__name__}: {e}")
+            logger.warning(f"[生图] {url} 调用失败：{type(e).__name__}: {e}")
         return {}
 
     async def _images_api(self, base, key, model, prompt, timeout):
@@ -330,10 +330,10 @@ class ImageGenerator:
                 hint = e.read().decode("utf-8", "replace")[:120]
             except Exception:
                 pass
-            logger.info(f"免费生图接口 HTTP {e.code}：{hint}")
+            logger.warning(f"[生图] 免费接口 HTTP {e.code}：{hint}")
             return ""
         except Exception as e:
-            logger.info(f"免费生图接口失败：{type(e).__name__}: {e}")
+            logger.warning(f"[生图] 免费接口失败：{type(e).__name__}: {e}")
             return ""
         return self._wrap(raw)
 
@@ -388,7 +388,7 @@ class ImageGenerator:
             if wrapped:
                 return wrapped
 
-        logger.warning("生图返回里没找到可用图片")
+        logger.warning("[生图] 返回里没找到可用图片")
         return ""
 
     def _wrap(self, raw):
@@ -410,7 +410,7 @@ class ImageGenerator:
         try:
             return await asyncio.to_thread(_http_get_bytes, url, timeout)
         except Exception as e:
-            logger.warning(f"下载生成图失败：{type(e).__name__}: {e}")
+            logger.warning(f"[生图] 下载生成图失败：{type(e).__name__}: {e}")
             return b""
 
     @staticmethod

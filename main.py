@@ -1,6 +1,52 @@
+import datetime
 import logging
+import os
 import asyncio
+from logging.handlers import RotatingFileHandler
 from langbot_plugin.api.definition.plugin import BasePlugin
+
+
+class _BeijingFormatter(logging.Formatter):
+    """容器内是 UTC，日志时间统一换成北京时间，排查时不用换算。"""
+
+    def formatTime(self, record, datefmt=None):
+        moment = datetime.datetime.fromtimestamp(
+            record.created, datetime.timezone(datetime.timedelta(hours=8))
+        )
+        return moment.strftime(datefmt or "%Y-%m-%d %H:%M:%S")
+
+
+def _setup_file_logging():
+    """把本进程的日志同时写一份到插件目录下的 logs/waifu.log。
+
+    共享 worker 部署模式下，插件的标准输出不会回传到前端日志面板，页面恒空。
+    落到文件里，出问题时可以直接 tail 查看，尤其是生图这种异步、易失败的环节。
+    """
+    try:
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        log_dir = os.path.join(root_dir, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        path = os.path.join(log_dir, "waifu.log")
+
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers:
+            if getattr(handler, "_waifu_file", False):
+                return path
+
+        handler = RotatingFileHandler(
+            path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8"
+        )
+        handler.setFormatter(_BeijingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        handler._waifu_file = True
+        root_logger.addHandler(handler)
+        # 插件默认只认 WARNING 以上，调到 INFO 才能看到生图每一步
+        root_logger.setLevel(logging.INFO)
+        return path
+    except Exception:
+        return ""
+
+
+LOG_FILE = _setup_file_logging()
 
 logger = logging.getLogger(__name__)
 

@@ -487,18 +487,22 @@ class OnMessageEventListener(EventListener):
             return
 
         self._gen_busy = True
+        started = time.time()
         try:
-            logger.info(f"开始生图: {desc[:60]}")
+            logger.info(f"[生图] 开始，描述：{desc[:60]}")
             data_uri = ""
             try:
                 data_uri = await asyncio.wait_for(gen.generate(desc), timeout=180)
             except asyncio.TimeoutError:
-                logger.warning("生图超时，放弃这一张")
+                logger.warning(f"[生图] 超时 {time.time() - started:.1f}s，放弃这一张")
             except Exception as e:
-                logger.error(f"生成图片失败: {e}", exc_info=True)
+                logger.error(f"[生图] 失败：{type(e).__name__}: {e}", exc_info=True)
 
             if not data_uri:
                 # 画不出来就退回家里的图库，别把话掉在地上
+                logger.warning(
+                    f"[生图] 没有拿到图片，用时 {time.time() - started:.1f}s，改发本地图库"
+                )
                 await self._maybe_send_image(ctx, "")
                 return
 
@@ -510,9 +514,11 @@ class OnMessageEventListener(EventListener):
                     f.write(raw)
                 await ctx.reply(MessageChain([Image(base64=data_uri, path=tmp_path)]))
                 gen.mark_sent()
-                logger.info(f"已发送 AI 生成图，约 {len(raw) // 1024} KB")
+                logger.info(
+                    f"[生图] 成功，用时 {time.time() - started:.1f}s，{len(raw) // 1024} KB"
+                )
             except Exception as e:
-                logger.error(f"发送生成图失败: {e}")
+                logger.error(f"[生图] 发送失败：{type(e).__name__}: {e}", exc_info=True)
             finally:
                 if tmp_path:
                     try:
