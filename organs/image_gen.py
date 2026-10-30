@@ -230,6 +230,8 @@ class ImageGenerator:
 
     async def _edits_api(self, base, key, model, prompt, ref, timeout):
         """图像编辑，把参考图一起送进去，人物才长得像。走 /images/edits。"""
+        if not ref:
+            return ""
         data = await self._post_json(
             base + "/images/edits",
             {
@@ -243,15 +245,20 @@ class ImageGenerator:
         return await self._extract(data, timeout) if data else ""
 
     async def _chat_with_image(self, base, key, model, prompt, ref, timeout):
-        content = [{"type": "text", "text": prompt}]
-        if ref:
-            content.append({"type": "image_url", "image_url": {"url": ref}})
+        """对话式出图，参考图当作消息里的图片一起发。没有参考图就别发请求。"""
+        if not ref:
+            return ""
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": content if ref else prompt}],
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": ref}},
+                ],
+            }],
+            "modalities": ["image", "text"],
         }
-        if ref:
-            payload["modalities"] = ["image", "text"]
         data = await self._post_json(base + "/chat/completions", payload, key, timeout)
         return await self._extract(data, timeout) if data else ""
 
